@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import pdb
 
 
 class MLP:
@@ -18,6 +20,7 @@ class MLP:
         self.hidden = []
         self.activations = []
         self.gradients = []
+        self.bias_errors = []
 
         # Input layer
         self.weights = [np.random.rand(self.size_input, self.size_hidden)]
@@ -85,11 +88,11 @@ class MLP:
             self.hidden.append(dot)
             input_vector = self.sigmoid(dot)
             self.activations.append(input_vector)
-        output = input_vector
-        return output
+        self.output = input_vector
+        return self.output
 
     def backward(self, estimation, training_y):
-        """Backward propagation to correct the weights.
+        """Backward propagation to correct the weights/biases.
 
         Parameters
         ----------
@@ -98,13 +101,18 @@ class MLP:
         training_y : 1D array
             Training output.
         """
-        error = (estimation - training_y)
+        error = (estimation - training_y).reshape(-1, 1)
         for i in reversed(range(self.number_layers + 1)):
-            delta = self.sig_der(self.hidden[i]).dot(error)
-            grad = self.activations[i].dot(delta)
+            pdb.set_trace()
+            delta = np.multiply(error,
+                                self.sig_der(self.hidden[i].reshape(-1, 1)))
+            self.bias_errors.append(delta[:, 0])
+            grad = np.dot(self.activations[i].reshape(-1, 1), delta.T)
             self.gradients.append(grad)
-            error = (delta * self.weights[i].T)[0]
-        self.gradients.reverse()
+            error = np.dot(self.weights[i], delta)
+
+        # The dimensions are good but the values of gradients/delta are
+        # exagerated : see values.
 
     def grad_descent(self, learning_rate):
         """Gradient descent to correct the weights by minimizing the
@@ -115,24 +123,15 @@ class MLP:
         learning_rate : float
             0 < lr < 1.
         """
+        self.gradients.reverse()
+        self.bias_errors.reverse()
         for i in range(self.number_layers + 1):
+            # pdb.set_trace()
             self.weights[i] -= learning_rate * self.gradients[i]
+            self.biases[i] -= learning_rate * self.bias_errors[i]
 
-    def train(self, input, training_output, learning_rate):
-        """Method to implement in a loop in order to train the neural network.
-
-        Parameters
-        ----------
-        training_input : 1D array
-            Initial x-data.
-        training_output : 1D array
-            Corresponding y-data.
-        learning_rate : float
-            0 < lr < 1.
-        """
-        y_hat = self.forward(input)
-        self.backward(y_hat, training_output)
-        self.grad_descent(learning_rate)
+        # WEIGHTS and BIASES ARE WAY TOO LARGE !
+        # ---> Problem in the backpropagation
 
     def get_weights(self):
         """ Getter method to keep track of weights arrays."""
@@ -142,14 +141,15 @@ class MLP:
 if __name__ == "__main__":
 
     # Hyper-parameters
-    n_in = 2
+    n_in = 3
     n_out = 1
-    n_lay = 1
-    sz_hid = 3
+    n_lay = 4
+    sz_hid = 10
+    lr = 1e-3
 
     # Training I/O
-    x = np.random.rand(n_in)
-    y = np.random.rand(n_out)
+    train_x = np.random.rand(n_in)
+    train_y = np.random.rand(n_out)
 
     # NN instance
     MLP = MLP(n_lay, sz_hid, n_in, n_out)
@@ -159,8 +159,13 @@ if __name__ == "__main__":
     # W = MLP.get_weights()
     # print(W[0])
 
-    epochs = 10
-    for i in range(epochs):
-        MLP.train(x, y, 1e-2)
-        w1 = MLP.get_weights()[0]
-        print(w1)
+    epochs = np.arange(100)
+    loss = np.zeros_like(epochs)
+    for epoch in epochs:
+        output = MLP.forward(train_x)
+        MLP.backward(output, train_y)
+        MLP.grad_descent(lr)
+        loss[epoch] = MLP.loss(output, train_y)
+
+    fig, ax = plt.subplots()
+    ax.plot(epochs, loss)
